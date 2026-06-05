@@ -201,13 +201,15 @@
     .m-alerta { background: var(--amarillo); opacity: 0.7; left: 75.7%; }
     .m-evacua { background: var(--rojo);    opacity: 0.7; left: 81.4%; }
     .ticks {
-      display: flex;
-      justify-content: space-between;
+      position: relative;
       margin-top: 5px;
+      height: 28px;
     }
-    .tick      { font-size: 10px; color: var(--gris); }
-    .tk-alerta { color: var(--amarillo); }
-    .tk-evacua { color: var(--rojo); }
+    .tick      { font-size: 9px; color: var(--gris); position: absolute; }
+    .tk-0      { left: 0%; top: 0; }
+    .tk-7      { right: 0%; top: 14px; }
+    .tk-alerta { color: var(--amarillo); left: 75.7%; top: 0; transform: translateX(-100%); padding-right: 4px; }
+    .tk-evacua { color: var(--rojo);    left: 81.4%; top: 0; transform: translateX(0%);    padding-left: 4px; }
 
     /* pill */
     .pill {
@@ -327,7 +329,6 @@
 <div class="app">
 
   <div class="header">
-    <div class="brand">Agustín Botteron · Clima y ciudades</div>
     <div class="title">Nivel del río Paraná</div>
     <div class="sub">Puerto de Santa Fe</div>
   </div>
@@ -369,10 +370,10 @@
           <div class="barra-marker m-evacua"></div>
         </div>
         <div class="ticks">
-          <span class="tick">0 m</span>
+          <span class="tick tk-0">0 m</span>
           <span class="tick tk-alerta">Alerta 5,30</span>
           <span class="tick tk-evacua">Evac. 5,70</span>
-          <span class="tick">7 m</span>
+          <span class="tick tk-7">7 m</span>
         </div>
       </div>
 
@@ -429,7 +430,7 @@
   </div>
 
   <div class="footer">
-    <span class="f-left">Clima · Ciudades · Financiamiento</span>
+    <span class="f-left">Elaborado por <strong style="color:#fff">Agustín Botteron</strong> · Clima · Ciudades · Financiamiento</span>
     <span class="f-right">@agustinbotteron</span>
   </div>
 
@@ -442,7 +443,7 @@
   const CERO_IGN = 8.20;
 
   // ── REEMPLAZÁ ESTA URL con tu proxy de Cloudflare Workers (ver instrucciones) ──
-  const PROXY_URL = 'https://rio-parana.agustinbotteron.workers.dev/';
+  const PROXY_URL = 'https://TU_WORKER.TU_USUARIO.workers.dev/';
 
   const FALLBACK = { nivel: 2.40, variacion: -0.05, estado: 'Baja', fecha: 'último dato disponible' };
 
