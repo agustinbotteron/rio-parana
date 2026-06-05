@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="description" content="Nivel actual del río Paraná en Santa Fe. Datos en tiempo real con alertas de inundación.">
+  <meta name="theme-color" content="#2f3136">
+  <meta property="og:title" content="Nivel del río Paraná — Santa Fe">
+  <meta property="og:description" content="Altura actual, variación y estado de alerta. Por Agustín Botteron.">
+  <title>Río Paraná — Santa Fe</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:      #2f3136;
+      --dark:    #222428;
+      --darker:  #1a1c1f;
+      --azul:    #4da3ff;
+      --amarillo:#ffe000;
+      --rojo:    #ff6b6b;
+      --gris:    #9b9ea4;
+      --line:    #44474d;
+      --white:   #ffffff;
+      --r-md:    10px;
+      --r-lg:    14px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: var(--darker);
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 16px 0 32px;
+      font-family: 'DM Sans', sans-serif;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 400px;
+      background: var(--bg);
+      border-radius: var(--r-lg);
+      overflow: hidden;
+      margin: 0 12px;
+    }
+
+    /* ── HEADER ── */
+    .header {
+      padding: 16px 18px 12px;
+      border-bottom: 0.5px solid var(--line);
+    }
+    .brand {
+      font-size: 10px;
+      color: var(--gris);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+    .title {
+      font-size: 20px;
+      font-weight: 500;
+      color: var(--white);
+      line-height: 1.2;
+    }
+    .sub {
+      font-size: 12px;
+      color: var(--gris);
+      margin-top: 2px;
+    }
+
+    /* ── FECHA BAR ── */
+    .fecha-bar {
+      padding: 7px 18px;
+      background: var(--dark);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      border-bottom: 0.5px solid var(--line);
+    }
+    .fecha-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      transition: background 0.3s;
+    }
+    .dot-ok      { background: var(--azul); }
+    .dot-loading { background: var(--gris); animation: blink 1s ease-in-out infinite; }
+    .dot-error   { background: var(--rojo); }
+    @keyframes blink { 0%,100%{opacity:0.3} 50%{opacity:1} }
+    .fecha-txt { font-size: 11px; color: var(--gris); flex: 1; }
+    .fuente-pill {
+      font-size: 10px;
+      background: rgba(77,163,255,0.12);
+      color: var(--azul);
+      padding: 2px 8px;
+      border-radius: 8px;
+      white-space: nowrap;
+    }
+
+    /* ── LOADER ── */
+    .loader {
+      padding: 28px 18px;
+      text-align: center;
+    }
+    .dots { display: flex; justify-content: center; gap: 6px; margin-bottom: 10px; }
+    .ld {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--azul);
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+    .ld:nth-child(2) { animation-delay: 0.2s; }
+    .ld:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes pulse { 0%,80%,100%{opacity:0.15} 40%{opacity:1} }
+    .loader p { font-size: 12px; color: var(--gris); }
+
+    /* ── ERROR BAR ── */
+    .error-bar {
+      display: none;
+      margin: 0 12px 10px;
+      padding: 9px 12px;
+      background: rgba(255,107,107,0.07);
+      border: 0.5px solid rgba(255,107,107,0.2);
+      border-radius: var(--r-md);
+      font-size: 11px;
+      color: var(--rojo);
+      line-height: 1.5;
+    }
+
+    /* ── CONTENIDO ── */
+    #contenido { display: none; }
+
+    .sec-label {
+      padding: 13px 18px 5px;
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--azul);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    /* ── NIVEL CARD ── */
+    .nivel-card {
+      margin: 0 12px 10px;
+      background: var(--dark);
+      border-radius: var(--r-lg);
+      border: 0.5px solid var(--line);
+      padding: 16px 16px 14px;
+    }
+    .nivel-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+    .nivel-num {
+      font-size: 52px;
+      font-weight: 500;
+      color: var(--white);
+      line-height: 1;
+      font-family: 'DM Mono', monospace;
+      letter-spacing: -0.02em;
+    }
+    .nivel-unit { font-size: 16px; color: var(--gris); margin-bottom: 7px; }
+    .var-block { margin-left: auto; text-align: right; }
+    .var-num {
+      font-size: 22px;
+      font-weight: 500;
+      font-family: 'DM Mono', monospace;
+    }
+    .var-lbl { font-size: 11px; color: var(--gris); }
+    .c-baja   { color: var(--azul); }
+    .c-sube   { color: var(--rojo); }
+    .c-igual  { color: var(--gris); }
+
+    /* barra */
+    .barra-wrap { margin-bottom: 11px; }
+    .barra-bg {
+      height: 7px;
+      background: var(--line);
+      border-radius: 4px;
+      position: relative;
+    }
+    .barra-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 1s cubic-bezier(.4,0,.2,1);
+      position: relative;
+    }
+    .barra-marker {
+      position: absolute;
+      top: -4px;
+      width: 1.5px;
+      height: 15px;
+      border-radius: 1px;
+      pointer-events: none;
+    }
+    .m-alerta { background: var(--amarillo); opacity: 0.7; left: 75.7%; }
+    .m-evacua { background: var(--rojo);    opacity: 0.7; left: 81.4%; }
+    .ticks {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 5px;
+    }
+    .tick      { font-size: 10px; color: var(--gris); }
+    .tk-alerta { color: var(--amarillo); }
+    .tk-evacua { color: var(--rojo); }
+
+    /* pill */
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 11px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .pill-d { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .p-ok    { background: rgba(77,163,255,0.12); color: var(--azul); }
+    .p-alert { background: rgba(255,224,0,0.12);  color: var(--amarillo); }
+    .p-evac  { background: rgba(255,107,107,0.12); color: var(--rojo); }
+
+    /* ── REFS ── */
+    .refs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin: 0 12px 10px;
+    }
+    .ref-card {
+      background: var(--dark);
+      border: 0.5px solid var(--line);
+      border-radius: var(--r-md);
+      padding: 10px 12px;
+    }
+    .ref-lbl { font-size: 10px; color: var(--gris); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 3px; }
+    .ref-val { font-size: 18px; font-weight: 500; font-family: 'DM Mono', monospace; }
+    .ref-sub { font-size: 10px; color: var(--gris); margin-top: 2px; }
+    .ra .ref-val { color: var(--amarillo); }
+    .re .ref-val { color: var(--rojo); }
+
+    /* ── NOTA ── */
+    .nota {
+      margin: 0 12px 12px;
+      padding: 10px 13px;
+      border-left: 3px solid var(--amarillo);
+      background: rgba(255,224,0,0.04);
+      border-radius: 0 var(--r-md) var(--r-md) 0;
+      font-size: 11px;
+      color: var(--gris);
+      line-height: 1.6;
+    }
+    .nota strong { color: var(--white); }
+
+    /* ── DIVIDER ── */
+    .div { height: 0.5px; background: var(--line); margin: 0 12px; }
+
+    /* ── BUTTONS ── */
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 10px 12px 0;
+      padding: 13px 14px;
+      border-radius: var(--r-md);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      font-family: 'DM Sans', sans-serif;
+      width: calc(100% - 24px);
+      border: none;
+      transition: background 0.15s;
+    }
+    .b-left div:first-child { margin-bottom: 1px; }
+    .b-sub { font-size: 10px; font-weight: 400; color: var(--gris); margin-top: 1px; }
+    .btn-p {
+      background: rgba(77,163,255,0.1);
+      border: 0.5px solid rgba(77,163,255,0.3);
+      color: var(--azul);
+    }
+    .btn-p:hover { background: rgba(77,163,255,0.18); }
+    .btn-p .b-sub { color: rgba(77,163,255,0.6); }
+    .btn-s {
+      background: var(--dark);
+      border: 0.5px solid var(--line);
+      color: var(--white);
+      margin-bottom: 0;
+    }
+    .btn-s:hover { background: #292c31; }
+    .arrow { font-size: 16px; flex-shrink: 0; }
+
+    /* ── FOOTER ── */
+    .footer {
+      margin-top: 14px;
+      padding: 12px 18px;
+      border-top: 0.5px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .f-left { font-size: 10px; color: var(--gris); }
+    .f-right { font-size: 10px; color: var(--azul); }
+
+    /* ── RETRY BTN ── */
+    .btn-retry {
+      display: none;
+      margin: 8px 12px 0;
+      padding: 9px 14px;
+      background: none;
+      border: 0.5px solid var(--line);
+      border-radius: var(--r-md);
+      color: var(--gris);
+      font-size: 12px;
+      font-family: 'DM Sans', sans-serif;
+      cursor: pointer;
+      width: calc(100% - 24px);
+    }
+  </style>
+</head>
+<body>
+
+<div class="app">
+
+  <div class="header">
+    <div class="brand">Agustín Botteron · Clima y ciudades</div>
+    <div class="title">Nivel del río Paraná</div>
+    <div class="sub">Puerto de Santa Fe</div>
+  </div>
+
+  <div class="fecha-bar">
+    <div class="fecha-dot dot-loading" id="fecha-dot"></div>
+    <span class="fecha-txt" id="fecha-txt">Consultando datos...</span>
+    <span class="fuente-pill">CIM · FICH-UNL</span>
+  </div>
+
+  <div id="loader" class="loader">
+    <div class="dots">
+      <div class="ld"></div><div class="ld"></div><div class="ld"></div>
+    </div>
+    <p>Consultando nivel del río</p>
+  </div>
+
+  <div id="error-bar" class="error-bar"></div>
+  <button id="btn-retry" class="btn-retry" onclick="cargarDatos()">↻ Reintentar</button>
+
+  <div id="contenido">
+
+    <div class="sec-label">Altura actual</div>
+
+    <div class="nivel-card">
+      <div class="nivel-row">
+        <div class="nivel-num" id="disp-nivel">—</div>
+        <div class="nivel-unit">m</div>
+        <div class="var-block">
+          <div class="var-num" id="disp-var">—</div>
+          <div class="var-lbl">vs ayer</div>
+        </div>
+      </div>
+
+      <div class="barra-wrap">
+        <div class="barra-bg">
+          <div class="barra-fill" id="barra-fill" style="width:0%"></div>
+          <div class="barra-marker m-alerta"></div>
+          <div class="barra-marker m-evacua"></div>
+        </div>
+        <div class="ticks">
+          <span class="tick">0 m</span>
+          <span class="tick tk-alerta">Alerta 5,30</span>
+          <span class="tick tk-evacua">Evac. 5,70</span>
+          <span class="tick">7 m</span>
+        </div>
+      </div>
+
+      <div id="disp-pill"></div>
+
+      <div style="margin-top:12px; padding-top:11px; border-top:0.5px solid var(--line); display:flex; align-items:baseline; justify-content:space-between;">
+        <div style="font-size:11px; color:var(--gris); line-height:1.4;">
+          Nivel IGN<br>
+          <span style="font-size:10px; color:var(--line);">hidrómetro + 8,20 m</span>
+        </div>
+        <div style="display:flex; align-items:baseline; gap:5px;">
+          <span style="font-size:26px; font-weight:500; font-family:'DM Mono',monospace; color:var(--gris);" id="disp-ign">—</span>
+          <span style="font-size:13px; color:var(--gris);">m IGN</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="refs">
+      <div class="ref-card ra">
+        <div class="ref-lbl">Alerta</div>
+        <div class="ref-val">5,30 m</div>
+        <div class="ref-sub">Activa protocolos</div>
+      </div>
+      <div class="ref-card re">
+        <div class="ref-lbl">Evacuación</div>
+        <div class="ref-val">5,70 m</div>
+        <div class="ref-sub">Dispone evacuaciones</div>
+      </div>
+    </div>
+
+    <div class="nota">
+      Estos umbrales son criterios generales. En zonas como Arroyo Leyes o Rincón,
+      el agua puede comprometer accesos <strong>antes</strong> de que se activen.
+    </div>
+
+    <div class="div"></div>
+
+    <a class="btn btn-p" href="http://wfich1.unl.edu.ar/cim/rios/parana/alturas" target="_blank" rel="noopener">
+      <div class="b-left">
+        <div>Ver tabla completa — CIM FICH-UNL</div>
+        <div class="b-sub">Todas las estaciones del Paraná</div>
+      </div>
+      <span class="arrow">↗</span>
+    </a>
+
+    <a class="btn btn-s" href="http://www.ina.gov.ar/alerta/" target="_blank" rel="noopener" style="margin-bottom:0">
+      <div class="b-left">
+        <div>Informe Semanal — INA</div>
+        <div class="b-sub">Río Paraná en Territorio Argentino</div>
+      </div>
+      <span class="arrow" style="color:var(--gris)">↗</span>
+    </a>
+
+  </div>
+
+  <div class="footer">
+    <span class="f-left">Clima · Ciudades · Financiamiento</span>
+    <span class="f-right">@agustinbotteron</span>
+  </div>
+
+</div>
+
+<script>
+  const ALERTA  = 5.30;
+  const EVACUA  = 5.70;
+  const MAX_BAR = 7;
+  const CERO_IGN = 8.20;
+
+  // ── REEMPLAZÁ ESTA URL con tu proxy de Cloudflare Workers (ver instrucciones) ──
+  const PROXY_URL = 'https://rio-parana.agustinbotteron.workers.dev/';
+
+  const FALLBACK = { nivel: 2.40, variacion: -0.05, estado: 'Baja', fecha: 'último dato disponible' };
+
+  async function cargarDatos() {
+    setEstado('loading');
+    document.getElementById('error-bar').style.display = 'none';
+    document.getElementById('btn-retry').style.display = 'none';
+    document.getElementById('loader').style.display = 'block';
+    document.getElementById('contenido').style.display = 'none';
+
+    let datos = null;
+    let usandoFallback = false;
+
+    try {
+      const res = await fetch(PROXY_URL, { signal: AbortSignal.timeout(10000) });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const html = await res.text();
+      datos = parsearTabla(html);
+    } catch (e) {
+      console.warn('Proxy falló:', e.message);
+    }
+
+    if (!datos) {
+      try {
+        const fallbackProxy = 'https://corsproxy.io/?url=' + encodeURIComponent('http://wfich1.unl.edu.ar/cim/rios/parana/alturas');
+        const res2 = await fetch(fallbackProxy, { signal: AbortSignal.timeout(8000) });
+        if (res2.ok) datos = parsearTabla(await res2.text());
+      } catch (e) {
+        console.warn('Fallback proxy falló:', e.message);
+      }
+    }
+
+    if (!datos) {
+      datos = FALLBACK;
+      usandoFallback = true;
+    }
+
+    document.getElementById('loader').style.display = 'none';
+    document.getElementById('contenido').style.display = 'block';
+
+    if (usandoFallback) {
+      const eb = document.getElementById('error-bar');
+      eb.style.display = 'block';
+      eb.textContent = 'No se pudo conectar con el servidor. Mostrando último dato conocido (31/05/2026).';
+      document.getElementById('btn-retry').style.display = 'block';
+    }
+
+    renderizar(datos, usandoFallback);
+  }
+
+  function parsearTabla(html) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const rows = doc.querySelectorAll('table tr');
+
+    for (const row of rows) {
+      const cells = row.querySelectorAll('td');
+      if (cells.length >= 5 && cells[0].textContent.trim() === 'Santa Fe') {
+        const nivel = parseFloat(cells[2].textContent.replace(',', '.').trim());
+        if (isNaN(nivel)) continue;
+        const varRaw = cells[3].textContent.replace(',', '.').trim();
+        const variacion = (varRaw === '—' || varRaw === '') ? null : parseFloat(varRaw);
+        const img = cells[4].querySelector('img');
+        const estado = img ? img.getAttribute('alt') : '';
+        let fecha = '';
+        doc.querySelectorAll('p, strong, b').forEach(el => {
+          const t = el.textContent.trim();
+          if ((t.includes('2025') || t.includes('2026')) && t.length < 60) fecha = t;
+        });
+        return { nivel, variacion, estado, fecha };
+      }
+    }
+    return null;
+  }
+
+  function renderizar({ nivel, variacion, estado, fecha }, esFallback) {
+    document.getElementById('disp-nivel').textContent = nivel.toFixed(2);
+
+    const ign = (nivel + CERO_IGN).toFixed(2);
+    document.getElementById('disp-ign').textContent = ign;
+
+    const varEl = document.getElementById('disp-var');
+    if (variacion !== null && variacion !== undefined && !isNaN(variacion)) {
+      const s = variacion > 0 ? '+' : '';
+      varEl.textContent = s + variacion.toFixed(2) + ' m';
+      varEl.className = 'var-num ' + (variacion > 0.005 ? 'c-sube' : variacion < -0.005 ? 'c-baja' : 'c-igual');
+    } else {
+      varEl.textContent = '—';
+      varEl.className = 'var-num c-igual';
+    }
+
+    const pct = Math.min((nivel / MAX_BAR) * 100, 100).toFixed(1);
+    const fill = document.getElementById('barra-fill');
+    fill.style.width = pct + '%';
+    fill.style.background = nivel >= EVACUA ? 'var(--rojo)' : nivel >= ALERTA ? 'var(--amarillo)' : 'var(--azul)';
+
+    const pillEl = document.getElementById('disp-pill');
+    if (nivel >= EVACUA) {
+      pillEl.innerHTML = '<span class="pill p-evac"><span class="pill-d"></span>Nivel de evacuación</span>';
+    } else if (nivel >= ALERTA) {
+      pillEl.innerHTML = '<span class="pill p-alert"><span class="pill-d"></span>Nivel de alerta</span>';
+    } else {
+      const dir = estado === 'Baja' ? 'Bajando' : estado === 'Crece' ? 'Subiendo' : 'Estable';
+      pillEl.innerHTML = `<span class="pill p-ok"><span class="pill-d"></span>Nivel normal — ${dir}</span>`;
+    }
+
+    const dot = document.getElementById('fecha-dot');
+    const txt = document.getElementById('fecha-txt');
+    if (esFallback) {
+      dot.className = 'fecha-dot dot-error';
+      txt.textContent = 'Sin conexión — último dato: 31/05/2026';
+    } else {
+      dot.className = 'fecha-dot dot-ok';
+      txt.textContent = fecha ? 'Datos: ' + fecha : 'Datos actualizados';
+    }
+  }
+
+  function setEstado(s) {
+    const dot = document.getElementById('fecha-dot');
+    dot.className = 'fecha-dot ' + (s === 'loading' ? 'dot-loading' : s === 'ok' ? 'dot-ok' : 'dot-error');
+  }
+
+  cargarDatos();
+</script>
+
+</body>
+</html>
