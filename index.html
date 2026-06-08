@@ -19,6 +19,7 @@
       --azul:    #4da3ff;
       --amarillo:#ffe000;
       --rojo:    #ff6b6b;
+      --verde:   #4caf7d;
       --gris:    #9b9ea4;
       --line:    #44474d;
       --white:   #ffffff;
@@ -223,6 +224,7 @@
     }
     .pill-d { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
     .p-ok    { background: rgba(77,163,255,0.12); color: var(--azul); }
+    .p-baja  { background: rgba(76,175,125,0.12); color: var(--verde); }
     .p-alert { background: rgba(255,224,0,0.12);  color: var(--amarillo); }
     .p-evac  { background: rgba(255,107,107,0.12); color: var(--rojo); }
 
@@ -536,10 +538,11 @@
     const varEl = document.getElementById('disp-var');
     if (variacion !== null && variacion !== undefined && !isNaN(variacion)) {
       const s = variacion > 0 ? '+' : '';
-      varEl.textContent = s + variacion.toFixed(2) + ' m';
+      const flecha = variacion > 0.005 ? '↑ ' : variacion < -0.005 ? '↓ ' : '→ ';
+      varEl.textContent = flecha + s + variacion.toFixed(2) + ' m';
       varEl.className = 'var-num ' + (variacion > 0.005 ? 'c-sube' : variacion < -0.005 ? 'c-baja' : 'c-igual');
     } else {
-      varEl.textContent = '—';
+      varEl.textContent = '— ';
       varEl.className = 'var-num c-igual';
     }
 
@@ -554,8 +557,11 @@
     } else if (nivel >= ALERTA) {
       pillEl.innerHTML = '<span class="pill p-alert"><span class="pill-d"></span>Nivel de alerta</span>';
     } else {
-      const dir = estado === 'Baja' ? 'Bajando' : estado === 'Crece' ? 'Subiendo' : 'Estable';
-      pillEl.innerHTML = `<span class="pill p-ok"><span class="pill-d"></span>Nivel normal — ${dir}</span>`;
+      const subiendo = variacion !== null && variacion > 0.005;
+      const bajando  = variacion !== null && variacion < -0.005;
+      const dir = subiendo ? 'Subiendo' : bajando ? 'Bajando' : 'Estable';
+      const cls = subiendo ? 'p-evac'   : bajando  ? 'p-baja'  : 'p-ok';
+      pillEl.innerHTML = `<span class="pill ${cls}"><span class="pill-d"></span>Nivel del río — ${dir}</span>`;
     }
 
     const dot = document.getElementById('fecha-dot');
