@@ -511,20 +511,27 @@
 
     for (const row of rows) {
       const cells = row.querySelectorAll('td');
-      if (cells.length >= 5 && cells[0].textContent.trim() === 'Santa Fe') {
-        const nivel = parseFloat(cells[2].textContent.replace(',', '.').trim());
-        if (isNaN(nivel)) continue;
-        const varRaw = cells[3].textContent.replace(',', '.').trim();
-        const variacion = (varRaw === '—' || varRaw === '') ? null : parseFloat(varRaw);
-        const img = cells[4].querySelector('img');
-        const estado = img ? img.getAttribute('alt') : '';
-        let fecha = '';
-        doc.querySelectorAll('p, strong, b').forEach(el => {
-          const t = el.textContent.trim();
-          if ((t.includes('2025') || t.includes('2026')) && t.length < 60) fecha = t;
-        });
-        return { nivel, variacion, estado, fecha };
+      if (cells.length < 3) continue;
+      const puerto = cells[0].textContent.trim();
+      if (puerto !== 'Santa Fe') continue;
+
+      const nivel = parseFloat(cells[2].textContent.replace(',', '.').replace(/[^\d.-]/g, '').trim());
+      if (isNaN(nivel)) continue;
+
+      let variacion = null;
+      if (cells[3]) {
+        const varRaw = cells[3].textContent.replace(',', '.').replace(/[^\d.+-]/g, '').trim();
+        const parsed = parseFloat(varRaw);
+        if (!isNaN(parsed)) variacion = parsed;
       }
+
+      let fecha = '';
+      doc.querySelectorAll('p, strong, b, td, th').forEach(el => {
+        const t = el.textContent.trim();
+        if ((t.includes('2025') || t.includes('2026')) && t.length < 80) fecha = t;
+      });
+
+      return { nivel, variacion, fecha };
     }
     return null;
   }
@@ -542,7 +549,7 @@
       varEl.textContent = flecha + s + variacion.toFixed(2) + ' m';
       varEl.className = 'var-num ' + (variacion > 0.005 ? 'c-sube' : variacion < -0.005 ? 'c-baja' : 'c-igual');
     } else {
-      varEl.textContent = '— ';
+      varEl.textContent = '→ 0.00 m';
       varEl.className = 'var-num c-igual';
     }
 
