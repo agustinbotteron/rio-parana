@@ -460,10 +460,39 @@
   const MAX_BAR = 7;
   const CERO_IGN = 8.37;
 
-  // ── REEMPLAZÁ ESTA URL con tu proxy de Cloudflare Workers (ver instrucciones) ──
-  const PROXY_URL = 'https://TU_WORKER.TU_USUARIO.workers.dev/';
+  const CIM_URL = 'http://wfich1.unl.edu.ar/cim/rios/parana/alturas';
 
-  const FALLBACK = { nivel: 2.40, variacion: -0.05, estado: 'Baja', fecha: 'último dato disponible' };
+  // ── PROXIES EN CASCADA ──────────────────────────────────────────────────────
+  // Se intentan en orden. Si uno falla, pasa al siguiente automáticamente.
+  // No depende de ningún proxy único ni de Cloudflare Workers.
+  const PROXIES = [
+    url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+    url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+    url => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+    url => `https://thingproxy.freeboard.io/fetch/${url}`,
+  ];
+
+  async function fetchConCascada() {
+    for (let i = 0; i < PROXIES.length; i++) {
+      const proxyUrl = PROXIES[i](CIM_URL);
+      try {
+        const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(9000) });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        let text = await res.text();
+        // allorigins /get devuelve JSON con campo "contents"
+        if (proxyUrl.includes('/get?url=')) {
+          try { const j = JSON.parse(text); text = j.contents || text; } catch(e) {}
+        }
+        const datos = parsearTabla(text);
+        if (datos) return datos;
+        throw new Error('Parseo sin resultado');
+      } catch (e) {
+        console.warn(`Proxy ${i + 1} falló:`, e.message);
+        if (i < PROXIES.length - 1) await new Promise(r => setTimeout(r, 500));
+      }
+    }
+    return null;
+  }
 
   async function cargarDatos() {
     setEstado('loading');
@@ -472,32 +501,8 @@
     document.getElementById('loader').style.display = 'block';
     document.getElementById('contenido').style.display = 'none';
 
-    let datos = null;
-    let usandoFallback = false;
-
-    try {
-      const res = await fetch(PROXY_URL, { signal: AbortSignal.timeout(10000) });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const html = await res.text();
-      datos = parsearTabla(html);
-    } catch (e) {
-      console.warn('Proxy falló:', e.message);
-    }
-
-    if (!datos) {
-      try {
-        const fallbackProxy = 'https://corsproxy.io/?url=' + encodeURIComponent('http://wfich1.unl.edu.ar/cim/rios/parana/alturas');
-        const res2 = await fetch(fallbackProxy, { signal: AbortSignal.timeout(8000) });
-        if (res2.ok) datos = parsearTabla(await res2.text());
-      } catch (e) {
-        console.warn('Fallback proxy falló:', e.message);
-      }
-    }
-
-    if (!datos) {
-      datos = FALLBACK;
-      usandoFallback = true;
-    }
+    const datos = await fetchConCascada();
+    const usandoFallback = !datos;
 
     document.getElementById('loader').style.display = 'none';
     document.getElementById('contenido').style.display = 'block';
@@ -505,11 +510,14 @@
     if (usandoFallback) {
       const eb = document.getElementById('error-bar');
       eb.style.display = 'block';
-      eb.textContent = 'No se pudo conectar con el servidor. Mostrando último dato conocido (31/05/2026).';
+      eb.textContent = 'No se pudo conectar con ninguna fuente. Verificá tu conexión e intentá de nuevo.';
       document.getElementById('btn-retry').style.display = 'block';
+      // mostrar guiones en lugar de dato viejo hardcodeado
+      setEstado('error');
+      return;
     }
 
-    renderizar(datos, usandoFallback);
+    renderizar(datos, false);
   }
 
   function parsearTabla(html) {
