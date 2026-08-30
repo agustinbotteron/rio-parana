@@ -462,33 +462,33 @@
 
   const CIM_URL = 'http://wfich1.unl.edu.ar/cim/rios/parana/alturas';
 
-  // ── PROXIES EN CASCADA ──────────────────────────────────────────────────────
-  // Se intentan en orden. Si uno falla, pasa al siguiente automáticamente.
-  // No depende de ningún proxy único ni de Cloudflare Workers.
+  // ── PROXIES EN CASCADA (5 opciones) ─────────────────────────────────────────
+  // Se intentan en orden. Cada entrada tiene: build(url), isJson, jsonKey
   const PROXIES = [
-    url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-    url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-    url => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-    url => `https://thingproxy.freeboard.io/fetch/${url}`,
+    { build: url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,       isJson: false },
+    { build: url => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,       isJson: true,  jsonKey: 'contents' },
+    { build: url => `https://corsproxy.io/?${encodeURIComponent(url)}`,                    isJson: false },
+    { build: url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,  isJson: false },
+    { build: url => `https://proxy.cors.sh/${url}`,                                        isJson: false },
   ];
 
   async function fetchConCascada() {
     for (let i = 0; i < PROXIES.length; i++) {
-      const proxyUrl = PROXIES[i](CIM_URL);
+      const { build, isJson, jsonKey } = PROXIES[i];
+      const proxyUrl = build(CIM_URL);
       try {
-        const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(9000) });
+        const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(10000) });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         let text = await res.text();
-        // allorigins /get devuelve JSON con campo "contents"
-        if (proxyUrl.includes('/get?url=')) {
-          try { const j = JSON.parse(text); text = j.contents || text; } catch(e) {}
+        if (isJson) {
+          try { const j = JSON.parse(text); text = j[jsonKey] || text; } catch(e) {}
         }
         const datos = parsearTabla(text);
-        if (datos) return datos;
+        if (datos) { console.log('Proxy ' + (i+1) + ' OK'); return datos; }
         throw new Error('Parseo sin resultado');
       } catch (e) {
-        console.warn(`Proxy ${i + 1} falló:`, e.message);
-        if (i < PROXIES.length - 1) await new Promise(r => setTimeout(r, 500));
+        console.warn('Proxy ' + (i+1) + ' fallo:', e.message);
+        if (i < PROXIES.length - 1) await new Promise(r => setTimeout(r, 600));
       }
     }
     return null;
