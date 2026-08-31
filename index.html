@@ -384,7 +384,7 @@
       <div style="margin-top:12px; padding-top:11px; border-top:0.5px solid var(--line); display:flex; align-items:baseline; justify-content:space-between;">
         <div style="font-size:11px; color:var(--gris); line-height:1.4;">
           Nivel IGN<br>
-          <span style="font-size:10px; color:var(--gris);">hidrómetro + 8,37 m (SRVN16)</span>
+          <span style="font-size:10px; color:var(--gris);">hidrómetro + 8,20 m (SRVN71)</span>
         </div>
         <div style="display:flex; align-items:baseline; gap:5px;">
           <span style="font-size:26px; font-weight:500; font-family:'DM Mono',monospace; color:var(--gris);" id="disp-ign">—</span>
@@ -466,7 +466,7 @@
   const ALERTA  = 5.30;
   const EVACUA  = 5.70;
   const MAX_BAR = 7;
-  const CERO_IGN = 8.37;
+  const CERO_IGN = 8.20;
 
   const CIM_URL = 'http://wfich1.unl.edu.ar/cim/rios/parana/alturas';
 
@@ -569,7 +569,7 @@
   function renderizar({ nivel, variacion, estado, fecha }, esFallback) {
     document.getElementById('disp-nivel').textContent = nivel.toFixed(2);
 
-    const ign = (nivel + CERO_IGN).toFixed(2);
+    const ign = (nivel + CERO_IGN).toFixed(2).replace('.', ',');
     document.getElementById('disp-ign').textContent = ign;
 
     const varEl = document.getElementById('disp-var');
