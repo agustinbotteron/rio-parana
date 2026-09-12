@@ -539,6 +539,8 @@
     const doc = parser.parseFromString(html, 'text/html');
     const rows = doc.querySelectorAll('table tr');
 
+    // Columnas: Estación(0) | Río(1) | Altura(2) | Variación(3) | Cambio(4) | Alt.Ant(5) | Alerta(6) | Evacuación(7)
+
     for (const row of rows) {
       const cells = row.querySelectorAll('td');
       if (cells.length < 3) continue;
@@ -548,8 +550,14 @@
       const nivel = parseFloat(cells[2].textContent.replace(',', '.').replace(/[^\d.-]/g, '').trim());
       if (isNaN(nivel)) continue;
 
+      // Fuente primaria: Alt. Ant. (col 5) — siempre tiene dato numérico
       let variacion = null;
-      if (cells[3]) {
+      if (cells[5]) {
+        const altAnt = parseFloat(cells[5].textContent.replace(',', '.').replace(/[^\d.-]/g, '').trim());
+        if (!isNaN(altAnt)) variacion = parseFloat((nivel - altAnt).toFixed(2));
+      }
+      // Fallback: col 3 (Variación pre-calculada) si Alt. Ant. no está disponible
+      if (variacion === null && cells[3]) {
         const varRaw = cells[3].textContent.replace(',', '.').replace(/[^\d.+-]/g, '').trim();
         const parsed = parseFloat(varRaw);
         if (!isNaN(parsed)) variacion = parsed;
@@ -558,7 +566,7 @@
       let fecha = '';
       doc.querySelectorAll('p, strong, b, td, th').forEach(el => {
         const t = el.textContent.trim();
-        if ((t.includes('2025') || t.includes('2026')) && t.length < 80) fecha = t;
+        if ((t.includes('2025') || t.includes('2026') || t.includes('2027')) && t.length < 100) fecha = t;
       });
 
       return { nivel, variacion, fecha };
@@ -567,7 +575,7 @@
   }
 
   function renderizar({ nivel, variacion, estado, fecha }, esFallback) {
-    document.getElementById('disp-nivel').textContent = nivel.toFixed(2);
+    document.getElementById('disp-nivel').textContent = nivel.toFixed(2).replace('.', ',');
 
     const ign = (nivel + CERO_IGN).toFixed(2).replace('.', ',');
     document.getElementById('disp-ign').textContent = ign;
@@ -576,10 +584,10 @@
     if (variacion !== null && variacion !== undefined && !isNaN(variacion)) {
       const s = variacion > 0 ? '+' : '';
       const flecha = variacion > 0.005 ? '↑ ' : variacion < -0.005 ? '↓ ' : '→ ';
-      varEl.textContent = flecha + s + variacion.toFixed(2) + ' m';
+      varEl.textContent = flecha + s + variacion.toFixed(2).replace('.', ',') + ' m';
       varEl.className = 'var-num ' + (variacion > 0.005 ? 'c-sube' : variacion < -0.005 ? 'c-baja' : 'c-igual');
     } else {
-      varEl.textContent = '→ 0.00 m';
+      varEl.textContent = '→ 0,00 m';
       varEl.className = 'var-num c-igual';
     }
 
