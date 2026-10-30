@@ -338,7 +338,7 @@
   <div class="fecha-bar">
     <div class="fecha-dot dot-loading" id="fecha-dot"></div>
     <span class="fecha-txt" id="fecha-txt">Consultando datos...</span>
-    <span class="fuente-pill">CIM · FICH-UNL</span>
+    <span class="fuente-pill">Prefectura Naval</span>
   </div>
 
   <div id="loader" class="loader">
@@ -361,7 +361,7 @@
         <div class="nivel-unit">m</div>
         <div class="var-block">
           <div class="var-num" id="disp-var">—</div>
-          <div class="var-lbl">vs ayer</div>
+          <div class="var-lbl" id="var-lbl">vs registro anterior</div>
         </div>
       </div>
 
@@ -413,10 +413,10 @@
 
     <div class="div"></div>
 
-    <a class="btn btn-s" href="http://wfich1.unl.edu.ar/cim/rios/parana/alturas" target="_blank" rel="noopener">
+    <a class="btn btn-s" href="https://contenidosweb.prefecturanaval.gob.ar/alturas/" target="_blank" rel="noopener">
       <div class="b-left">
-        <div>Ver tabla completa — CIM FICH-UNL</div>
-        <div class="b-sub">Todas las estaciones del Paraná</div>
+        <div>Ver tabla completa — Prefectura Naval</div>
+        <div class="b-sub">Todas las estaciones, actualizada cada 12 h</div>
       </div>
       <span class="arrow" style="color:var(--gris)">↗</span>
     </a>
@@ -468,7 +468,8 @@
   const MAX_BAR = 7;
   const CERO_IGN = 8.20;
 
-  const CIM_URL = 'http://wfich1.unl.edu.ar/cim/rios/parana/alturas';
+  const FUENTE_URL = 'https://contenidosweb.prefecturanaval.gob.ar/alturas/index.php';
+  const MAX_EDAD_H = 36; // si el dato es más viejo, se marca como desactualizado
 
   // ── PROXIES EN PARALELO ──────────────────────────────────────────────────────
   // Todos se lanzan a la vez. Gana el primero que devuelva un dato válido.
@@ -479,12 +480,11 @@
     { build: url => `https://rio-parana.agustinbotteron.workers.dev/?url=${encodeURIComponent(url)}`,                    isJson: false },
     { build: url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,   isJson: false },
     { build: url => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,   isJson: true,  jsonKey: 'contents' },
-    { build: url => `https://corsproxy.io/?${encodeURIComponent(url)}`,                isJson: false },
     { build: url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`, isJson: false },
   ];
 
   async function intentarProxy({ build, isJson, jsonKey }, index) {
-    const proxyUrl = build(CIM_URL);
+    const proxyUrl = build(FUENTE_URL);
     const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(12000) });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     let text = await res.text();
@@ -536,47 +536,46 @@
     renderizar(datos, false);
   }
 
+  const MESES = { ENE:0, FEB:1, MAR:2, ABR:3, MAY:4, JUN:5, JUL:6, AGO:7, SEP:8, SET:8, OCT:9, NOV:10, DIC:11 };
+
+  // "30/OCT/26 - 1200" -> Date (hora Argentina, UTC-3)
+  function parsearFecha(txt) {
+    const m = /(\d{1,2})\/([A-Z]{3})\/(\d{2})\s*-\s*(\d{2})(\d{2})/.exec((txt || '').toUpperCase());
+    if (!m || !(m[2] in MESES)) return null;
+    return new Date(Date.UTC(2000 + +m[3], MESES[m[2]], +m[1], +m[4] + 3, +m[5]));
+  }
+
+  // Tabla de Prefectura. El nombre de la estación viene en <th>; el resto en <td>:
+  // 0 Puerto | 1 Río | 2 Últ. registro | 3 Variación | 4 Período | 5 Fecha-Hora | 6 Estado |
+  // 7 (ícono) | 8 Registro anterior | 9 Fecha anterior | 10 Alerta | 11 Evacuación
   function parsearTabla(html) {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
-    const rows = doc.querySelectorAll('table tr');
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    for (const row of doc.querySelectorAll('table tr')) {
+      const c = [...row.children].map(x => x.textContent.trim());
+      if (c.length < 10 || c[0].toUpperCase() !== 'SANTA FE' || c[1].toUpperCase() !== 'PARANA') continue;
 
-    // Columnas: Estación(0) | Río(1) | Altura(2) | Variación(3) | Cambio(4) | Alt.Ant(5) | Alerta(6) | Evacuación(7)
-
-    for (const row of rows) {
-      const cells = row.querySelectorAll('td');
-      if (cells.length < 3) continue;
-      const puerto = cells[0].textContent.trim();
-      if (puerto !== 'Santa Fe') continue;
-
-      const nivel = parseFloat(cells[2].textContent.replace(',', '.').replace(/[^\d.-]/g, '').trim());
+      const nivel = parseFloat(c[2].replace(',', '.'));
       if (isNaN(nivel)) continue;
 
-      // Fuente primaria: Alt. Ant. (col 5) — siempre tiene dato numérico
       let variacion = null;
-      if (cells[5]) {
-        const altAnt = parseFloat(cells[5].textContent.replace(',', '.').replace(/[^\d.-]/g, '').trim());
-        if (!isNaN(altAnt)) variacion = parseFloat((nivel - altAnt).toFixed(2));
-      }
-      // Fallback: col 3 (Variación pre-calculada) si Alt. Ant. no está disponible
-      if (variacion === null && cells[3]) {
-        const varRaw = cells[3].textContent.replace(',', '.').replace(/[^\d.+-]/g, '').trim();
-        const parsed = parseFloat(varRaw);
-        if (!isNaN(parsed)) variacion = parsed;
+      const ant = parseFloat((c[8] || '').replace(',', '.'));
+      if (!isNaN(ant)) variacion = parseFloat((nivel - ant).toFixed(2));
+      if (variacion === null) {
+        const v = parseFloat((c[3] || '').replace(',', '.'));
+        if (!isNaN(v)) variacion = v;
       }
 
-      let fecha = '';
-      doc.querySelectorAll('p, strong, b, td, th').forEach(el => {
-        const t = el.textContent.trim();
-        if ((t.includes('2025') || t.includes('2026') || t.includes('2027')) && t.length < 100) fecha = t;
-      });
+      const fechaDate = parsearFecha(c[5]);
+      const antDate = parsearFecha(c[9]);
+      let horas = parseInt(c[4], 10);
+      if (fechaDate && antDate) horas = Math.round((fechaDate - antDate) / 3600000);
 
-      return { nivel, variacion, fecha };
+      return { nivel, variacion, fecha: c[5], fechaDate, horas: isNaN(horas) ? null : horas };
     }
     return null;
   }
 
-  function renderizar({ nivel, variacion, estado, fecha }, esFallback) {
+  function renderizar({ nivel, variacion, fecha, fechaDate, horas }, esFallback) {
     document.getElementById('disp-nivel').textContent = nivel.toFixed(2).replace('.', ',');
 
     const ign = (nivel + CERO_IGN).toFixed(2).replace('.', ',');
@@ -611,9 +610,15 @@
       pillEl.innerHTML = `<span class="pill ${cls}"><span class="pill-d"></span>Nivel del río — ${dir}</span>`;
     }
 
+    document.getElementById('var-lbl').textContent = horas ? 'vs ' + horas + ' h antes' : 'vs registro anterior';
+
     const dot = document.getElementById('fecha-dot');
     const txt = document.getElementById('fecha-txt');
-    if (esFallback) {
+    const edadH = fechaDate ? (Date.now() - fechaDate.getTime()) / 3600000 : null;
+    if (edadH !== null && edadH > MAX_EDAD_H) {
+      dot.className = 'fecha-dot dot-error';
+      txt.textContent = 'Dato desactualizado — último registro: ' + fecha;
+    } else if (esFallback) {
       dot.className = 'fecha-dot dot-error';
       txt.textContent = 'Sin conexión — último dato: 31/05/2026';
     } else {
